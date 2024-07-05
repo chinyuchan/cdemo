@@ -64,5 +64,86 @@ int pthread_join(pthread_t thread, void **retval);
 * 注意从线程过程函数中返回值的方法：
   * 线程过程函数将所需返回的内容放在一块内存中，返回该内存的地址，保证这块内存在函数返回，即线程结束以后依然有效。
   * 若`retval`参数为非`NULL`，则`pthread_join`函数将线程过程函数所返回的指针，拷贝到该参数所指向的内存中。
+  * 若线程过程函数所返回的指针指向动态分配的内存，则还需保证在用过该内存之后释放之。
+
+### 获取线程自身的ID
+```c
+#include <pthread.h>
+
+pthread_t pthread_self(void);
+```
+* 返回值：成功返回0，不会失败，因为每个线程都有ID。
+
+### 比较两个线程的ID
+```c
+#include <pthread.h>
+
+int pthread_equal(pthread_t t1, pthread_t t2);
+```
+* 返回值：t1和t2相等返回非0，不等返回0。`pthread_t`有些实现是`unsigned long int`，有些是结构体，所以不能简单地用`==`判断。
+
+### 终止线程
+* 从线程过程函数中return。
+* 调用`pthread_exit`函数。
+```c
+#include <pthread.h>
+
+void pthread_exit(void *retval);
+```
+注意：在任何线程中调用`exit`函数都会终止整个进程。
+
+### 线程执行轨迹
+* 同步方式（非分离状态）
+  * 创建线程之后，调用`pthread_join`函数等待其终止，并释放线程资源。
+* 异步方式（分离状态）
+  * 无需创建者等待，线程终止之后自行释放资源。
+```
+#include <pthread.h>
+
+int pthread_detach(pthread_t thread);
+```
+* 功能：使`thread`参数所标识的线程进入分离（DETACH）状态。处于分离状态的线程终止后自动释放线程资源，且不能被`pthread_join`函数等待。
+* 返回值：成功返回0，失败返回错误码。
+
+### 取消线程
+#### 向指定线程发出取消请求
+```c
+#include <pthread.h>
+
+int pthread_cancel(pthread_t thread);
+```
+* 返回值：成功返回0，失败返回错误码。
+* 注意：
+  * 该函数只是向线程发出取消请求，并不等待线程终止。
+  * 缺省情况下，线程收到取消请求后，并不会立即终止，而是仍继续运行，直到达到某个取消点。在取消点处，线程检查其自身是否已经被取消了，并做出相应动作。如果立即取消，可能导致数据不完整。
+
+#### 设置调用线程的可取消状态
+```c
+#include <pthread.h>
+
+int pthread_setcancelstate(int state, int *oldstate);
+```
+* 返回值：成功返回0，并通过`oldstate`参数输出原可取消状态（若非NULL），失败返回错误码。
+* `state`取值：
+  * `PTHREAD_CANCEL_ENABLE`：接受取消请求（缺省）。
+  * `PTHREAD_CANCEL_DISABLE`：忽略取消请求。
+
+#### 设置调用线程的可取消类型
+```c
+#include <pthread.h>
+
+int pthread_setcanceltype(int type, int *oldtype);
+```
+* 返回值：成功返回0，并通过`oldtype`参数输出原可取消类型（若非NULL），失败返回错误码。
+* `type`取值：
+  * `PTHREAD_CANCEL_DEFERRED`：延迟取消（缺省）。被取消线程在接收到取消请求后并不立即响应，而是一直等到执行了特定的函数（取消点）之后再响应该请求。
+  * `PTHREAD_CANCEL_ASYNCHRONOUS`：异步取消。被取消线程可以在任意时间取消，而不是得遇到取消点才能被取消。但是操作系统并不能保证这一点。
+
+
+### 线程属性
+
+
+
+
 
 

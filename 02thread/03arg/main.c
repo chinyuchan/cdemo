@@ -25,6 +25,12 @@ void* thread_pyth(void* arg) {
     return NULL;
 }
 
+void* thread_show(void* arg) {
+    sleep(1);
+    printf("n = %d\n", *(int*)arg);
+    return NULL;
+}
+
 int main(void) {
     printf("r = ");
     double r;
@@ -50,7 +56,7 @@ int main(void) {
     scanf("%lf", &pyth.b);
 
     if (err = pthread_create(&tid, NULL, thread_pyth, &pyth)) {
-        fprintf(stderr,"pthread_create2: %s\n", strerror(tid));
+        fprintf(stderr,"pthread_create2: %s\n", strerror(err));
         return -1;
     }
     if (err = pthread_join(tid, NULL)) {
@@ -58,5 +64,19 @@ int main(void) {
         return -1;
     }
     printf("c = %g\n", pyth.c);
+
+    int* n = malloc(sizeof(int));
+    *n = 1234;
+    if (err = pthread_create(&tid, NULL, thread_show, n)) {
+        fprintf(stderr, "pthread_create: %s\n", strerror(err));
+        return -1;
+    }
+    if (err = pthread_join(tid, NULL)) {
+        fprintf(stderr, "pthread_join: %s\n", strerror(err));
+        return -1;
+    }
+
+    free(n);
+
     return 0;
 }
