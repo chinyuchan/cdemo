@@ -39,6 +39,7 @@ int main(void) {
 
     if (err = pthread_join(tid, NULL)) {
         fprintf(stderr, "pthread_join1: %s", strerror(err));
+        return -1;
     }
 
     printf("s = %g\n", r);
