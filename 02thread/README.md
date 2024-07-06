@@ -1,5 +1,4 @@
 # 线程管理
-
 ## 基本概念
 * 线程就是程序的执行录像，即进程内部的控制序列，或者说是进程的子任务。
 * 线程，轻量级，不拥有自己独立的内存资源，共享进程的代码区、数据区、堆区（没有栈区）、环境变量和命令行参数、文件描述符、信号处理函数、当前目录、用户ID和组ID等资源。
@@ -8,7 +7,7 @@
 
 ## 基本特点
 * 线程是进程的一个实体，可作为系统独立调度和分派的基本单位。
-* 线程有不同的状态，系统提供了多种线程控制原语，
+* 线程有不同的状态，系统提供了多种线程控制原语，如创建线程、销毁线程等等。
 * 线程不拥有自己的资源，只拥有从属于进程的全部资源，所有的资源分配都是面向进程的。
 * 一个进程中可以有多个线程并发地运行。它们可以执行相同的代码，也可以执行不同的代码。
 * 同一个进程的多个线程都在同一个地址空间内活动，因此相对于进程，现成的系统开销小，任务切换快。
@@ -141,6 +140,192 @@ int pthread_setcanceltype(int type, int *oldtype);
 
 
 ### 线程属性
+创建线程函数的第二个参数即为线程属性，传空指针表示使用缺省属性。
+```
+#include <pthread.h>
+
+int pthread_create(pthread_t *restrict thread,
+                  const pthread_attr_t *restrict attr,
+                  void *(*start_routine)(void *),
+                  void *restrict arg);
+
+typdef struct {
+    int detachstate;
+    int scope;
+    int inheritsched;
+    int schedpolicy;
+    struct sched_param schedparam;
+    size_t guardsize;
+    void* stackaddr;
+    size_t stacksize;
+} pthread_attr_t;
+```
+* `detachstate`：分离状态
+  * `PTHREAD_CREATE_DETACHED`：分离线程。
+  * `PTHREAD_CREATE_JOINABLE`：可汇合线程（缺省）。
+* `scope`：竞争范围
+  * `PTHREAD_SCOPE_SYSTEM`：在系统范围内竞争资源。
+  * `PTHREAD_SCOPE_PROCESS`：在进程范围内竞争资源（Linux不支持）。
+* `inheritsched`：继承特性
+  * `PTHREAD_INHERIT_SCHED`：调度属性从创建线程者继承。
+  * `PTHREAD_EXPLICIT_SCHED`：调度属性由后面两个成员决定。
+* `schedpolocy`：调度策略
+  * `SCHED_FIFO`：先进先出策略。
+    * 没有时间片。
+    * 一个FIFO线程会持续运行，直到阻塞或有更高优先级线程就绪。
+    * 当FIFO线程阻塞时，系统将其移出就绪队列，待其恢复时再加到同优先级就绪队列的末尾。
+    * 当FIFO线程被高优先级线程抢占时，它在就绪队列中的位置不变。因此一旦高优先级线程终止或阻塞，被抢占的FIFO线程将会立即继续运行。
+  * `SCHED_RR`：轮转策略。
+    * 给每个RR线程分配一个时间片，一旦RR线程的时间片耗尽，系统即将其移到就绪队列的末尾。
+  * `SCHED_OTHER`：普通策略。
+    * 静态优先级为80。
+    * 任何就绪的FIFO线程或RR线程都会抢占此类线程。
+* `schedparam`：调度参数。
+  ```
+  struct sched_param {
+      int sched_priority; // 静态优先级，值越小，优先级越高
+  };
+  ```
+* `guardsize`：栈尾警戒区大小（字节），缺省为一页（4096）字节。允许一定范围的栈溢出，防止破坏其他数据。
+* `stackaddr`：栈地址。
+* `stacksize`：栈大小（字节）。
+
+不要手工读写该结构体，而应调用`pthread_attr_set/get`t函数设置/获取具体属性。
+
+
+#### 设置线程属性
+* 第一步，初始化线程结构体属性
+  ```c
+  int pthread_attr_init(pthread_attr_t* attr);
+  ```
+* 第二步，设置具体的线程属性
+  ```c
+  int pthread_attr_setdetachstate(pthread_attr_t* attr, int detachstate);
+  int pthread_attr_setscope(pthread_attr_t* attr, int scope);
+  int pthread_attr_setinheritsched(pthread_attr_t* attr, int inheritsched);
+  int pthread_attr_setschedpolicy(pthread_attr_t* attr, int policy);
+  int pthread_attr_setschedparam(pthread_attr_t* attr, const struct sched_param* param);
+  int pthread_attr_setguardsize(pthread_attr_t* attr, int guardsize);
+  int pthread_attr_setstackaddr(pthread_attr_t* attr, void* stackaddr);
+  int pthread_attr_setstacksize(pthread_attr_t* attr, size_t stacksize);
+  int pthread_attr_setstack(pthread_attr_t* attr, void* stackaddr, size_t stacksize);
+  ```
+* 第三步，以设置好的线程属性结构体为参数创建线程
+* 第四步，销毁线程属性结构体
+  ```c
+  int pthread_attr_destroy(pthread_attr_t* attr);
+  ```
+#### 获取线程属性
+* 第一步，获取线程属性结构体
+  ```c
+  int pthread_getattr_np(pthread_t thread, pthread_attr_t* attr);
+  ```
+* 第二步，获取具体线程属性
+  ```c
+  int pthread_attr_setdetachstate(pthread_attr_t* attr, int detachstate);
+  int pthread_attr_setscope(pthread_attr_t* attr, int scope);
+  int pthread_attr_setinheritsched(pthread_attr_t* attr,  int inheritsched);
+  int pthread_attr_setschedpolicy(pthread_attr_t* attr, int policy);
+  int pthread_attr_getschedparam(pthread_attr_t* attr, struct sched_param* param);
+  int pthread_attr_setguardsize(pthread_attr_t* attr, size_t guardsize);
+  int pthread_attr_setstackaddr(pthread_attr_t* attr, void *stackaddr);
+  int pthread_attr_setstacksize(pthread_attr_t* attr, size_t stacksize);
+  int pthread_attr_setstack(pthread_attr_t* attr, void stackaddr, size_t stacksize);
+  ```
+以上所有函数成功返回0，失败返回错误码。
+
+
+# 线程同步 
+## 竞争与同步
+当多个线程同时访问其所共享的进程资源时，需要相互协调，以防止出现数据不一致、不完整的问题，这就要线程同步。
+
+## 互斥锁
+```
+线程1：
+    加锁互斥锁
+    锁区代码块
+    解锁互斥锁
+线程2：
+    加锁互斥锁
+    锁区代码块
+    解锁互斥锁
+```
+锁区（临界区）代码块中的代码在任何时候最多只被一个线程执行。任何时刻只会有一个线程对特定的互斥锁加锁成功，其他试图对其加锁的线程会在加锁函数的阻塞中等待，
+直到该互斥锁的持有者将其解锁。对特定互斥锁加锁成功的线程，可以通过调用解锁函数将其解锁，那些阻塞于该互斥锁加锁的线程中的一个会被唤醒，得到该互斥锁，
+并从加锁函数中返回，执行锁区代码。
+```c
+pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER; // 静态方式初始化
+
+pthread_mutex_t m;
+pthread_mutext_init(&m, NULL);  // 动态方式初始化
+
+pthread_mutex_lock(&m);    // 加锁
+// ...
+pthread_mutex_unlock(&m);  // 解锁
+pthread_mutex_destroy(&m); // 销毁
+```
+
+## 信号量
+信号量是一个计数器，用于控制访问有限资源的线程数。
+
+### 创建信号量
+```c
+#include <semaphore.h>
+
+int sem_init(sem_t *sem, int pshared, unsigned int value);
+```
+* `sem`：信号量ID，输出参数。
+* `pshared`：一般取0，表示调用线程的信号量。非0表示信号量可以共享内存的方式，为多个线程所共享（Linux暂不支持）。
+* `value`：信号量初值。
+
+```c
+// 信号量减1，不够减就阻塞
+int sem_wait(sem_t* sem);
+
+// 信号量减1，不够减即返回-1，errno为EAGAIN
+int sem_trywait(sem_t* sem);
+
+// 信号量减1，不够减就阻塞，直到abs_timeout超时返回-1，errno为ETIMEDOUT
+int sem_timedwait(sem_t* sem, const struct timespec *restrict abs_timeout);
+
+struct timespec {
+    time_t tv_sec; // seconds
+    long tv_nsec;  // Nanoseconds [0, 999999999]
+};
+
+// 信号量加1
+int sem_post(sem_t* sem);
+
+// 销毁信号量
+int sem_destroy(sem_t* sem);
+```
+注意：
+* 信号量API没有声明在`pthread.h`中，而是声明在`semaphore.h`中，失败也不返回错误码，而是返回-1，同时设置`errno`。
+* 互斥量任何时候都只允许一个线程访问共享资源，而信号量则允许最多`value`个线程同时访问共享资源，当`value`为1时，与互斥量等价。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
