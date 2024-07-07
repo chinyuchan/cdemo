@@ -304,6 +304,71 @@ int sem_destroy(sem_t* sem);
 * 互斥量任何时候都只允许一个线程访问共享资源，而信号量则允许最多`value`个线程同时访问共享资源，当`value`为1时，与互斥量等价。
 
 
+## 条件变量
+
+### 生产者消费者模型
+* 生产者：产生数据的线程。
+* 消费者：使用数据的线程。
+* 通过缓冲区隔离生产者和消费者，与二者直连相比，避免相互等待，提高运行效率。
+* 生产快于消费，缓冲区满，撑死。
+* 消费快于生产，缓冲区空，饿死。
+* 条件变量可以让调用线程在满足特定条件的情况下暂停。
+
+### 初始化条件变量
+```c
+#include <pthread.h>
+
+// 初始化后，是条件不满足状态
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+
+int pthread_cond_init(pthread_cond_t *cond, pthread_condattr_t *cond_attr);
+```
+
+### 等待条件变量
+```c
+#include <pthread.h>
+
+// 等待条件变量满足条件
+// 使调用线程睡入条件变量，同时释放互斥锁mutex
+int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex);
+
+int pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex, const struct timespec *abstime);
+
+struct timespec {
+    time_t tv_sec;  // seconds
+    long   tv_nsec; // nanoseconds [0 - 999999999]
+};
+```
+
+### 唤醒线程
+```c
+#include <pthread.h>
+
+// 从条件变量cond中唤醒一个线程，令其重新获得原先的互斥锁
+int pthread_cond_signal(pthread_cond_t *cond);
+
+// 从条件变量cond中唤醒所有线程
+int pthread_cond_broadcast(pthread_cond_t *cond);
+```
+注意：
+* 被醒出的线程此刻将从pthread_cond_wait函数中返回，但如果该线程无法获得原先的锁，则会继续阻塞在加锁上。
+* 当一个线程被从条件变量中换醒以后，导致其睡入条件变量的条件可能还需再判断一次，因此随时有可能被其他线程修改。
+
+### 销毁条件变量
+```c
+#include <pthread.h>
+
+int pthread_cond_destroy(pthread_cond_t *cond);
+```
+
+
+
+
+
+
+
+
+
 
 
 
