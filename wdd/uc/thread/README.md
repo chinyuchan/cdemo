@@ -168,12 +168,126 @@ struct timespec {
   * 信号量既可以用于线程，也可以用于进程。
 
 
+# 条件变量
+* 条件变量不能单独使用，需要配合互斥锁一起使用。
+* 允许线程以无竞争的方式等待特定条件发生，条件变量本身是由互斥锁保护的。
+
+```c
+#include <pthread.h>
+
+// 静态初始化
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+
+// 动态初始化
+int pthread_cond_init(pthread_cond_t *cond, pthread_condattr_t *cond_attr);
+
+// 给在等待条件的一个线程发送信号，唤醒等待的线程，获得互斥锁
+int pthread_cond_signal(pthread_cond_t *cond);
+
+// 给在等待条件的一个线程发送广播，唤醒所有等待的线程，它们竞争互斥锁
+int pthread_cond_broadcast(pthread_cond_t *cond);
+
+// 阻塞等待，并且释放互斥锁（也就是说pthread_cond_wait之前，必须上锁成功），当线程被唤醒时，又会去竞争互斥锁，如果上锁成功，函数就返回，否则一直阻塞
+int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex);
+
+// 等待一段时间，如果超时，返回错误
+int pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t  *mutex,  const  struct  timespec  *abstime);
+
+// 销毁条件变量
+int pthread_cond_destroy(pthread_cond_t *cond);
 
 
+int pthread_condattr_init(pthread_condattr_t *attr);
+int pthread_condattr_destroy(pthread_condattr_t *attr);
+int pthread_condattr_getpshared(const pthread_condattr_t *restrict attr, int *restrict pshared);
+int pthread_condattr_setpshared(pthread_condattr_t *attr, int pthread);
+int pthread_condattr_getclock(const pthread_condattr_t *restrict attr, clockid_t *restrict clock_id);
+int pthread_condattr_setclock(pthread_condattr_t *attr, clockid_t clock_id);
+```
 
+# （线程）读写锁
+* 读锁：共享锁
+* 写锁：独占锁、排他锁、互斥锁
+* 读写锁的效率虽然和互斥锁一样慢，甚至效率更低，但仍有适合的场景
+  * 适用于读的频率远大于写的频率，提高程序并发性
+```
+pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
+int pthread_rwlock_init(pthread_rwlock_t *restrict rwlock, const pthread_rwlockattr_t *restrict attr);
+int pthread_rwlock_destroy(pthread_rwlock_t *rwlock);
 
+int pthread_rwlock_rdlock(pthread_rwlock_t *rwlock);
+int pthread_rwlock_tryrdlock(pthread_rwlock_t *rwlock);
+int pthread_rwlock_timedrdlock(pthread_rwlock_t *restrict rwlock, const struct timespec *restrict abstime);
 
+int pthread_rwlock_wrlock(pthread_rwlock_t *rwlock);
+int pthread_rwlock_trywrlock(pthread_rwlock_t *rwlock);
+int pthread_rwlock_timedwrlock(pthread_rwlock_t *restrict rwlock, const struct timespec *restrict abstime);
 
+int pthread_rwlock_unlock(pthread_rwlock_t *rwlock);
+
+int pthread_rwlockattr_init(pthread_rwlockattr_t *attr);
+int pthread_rwlockattr_destroy(pthread_rwlockattr_t *attr);
+
+int pthread_rwlockattr_getpshared(const pthread_rwlockattr_t *restrict attr, int *restrict pshared);
+int pthread_rwlockattr_setpshared(pthread_rwlockattr_t *attr, int pshared);
+
+int pthread_rwlockattr_setkind_np(pthread_rwlockattr_t *attr, int pref);
+int pthread_rwlockattr_getkind_np(const pthread_rwlockattr_t *attr, int *pref);
+```
+# 自旋锁
+* 自旋锁也是互斥的。
+* 互斥锁、信号量、读写锁、屏障，它们的机制是当调用wait/lock函数进行上锁，如果不能上锁，则阻塞。所谓阻塞，其实就是让出CPU，让其他可执行的线程去执行，只有能够上锁时，wait/lock才被唤醒。
+* 自旋锁当不能上锁时，调用lock的线程会一直占用CPU，一直去询问是否可以上锁，很容易死锁。
+  * 自旋，即占用CPU一直循环。
+* 自旋锁要求临界区很小（执行不会占用太多时间），一般适用于多核CPU。
+```c
+#include <pthread.h>
+
+int pthread_spin_init(pthread_spinlock_t *lock, int pshared);
+int pthread_spin_destroy(pthread_spinlock_t *lock);
+
+int pthread_spin_lock(pthread_spinlock_t *lock);
+int pthread_spin_trylock(pthread_spinlock_t *lock);
+int pthread_spin_unlock(pthread_spinlock_t *lock);
+```
+
+# 屏障
+* 屏障就是要求多少线程满足条件之后再继续执行，统一或协调线程的执行步调。
+* `pthread_join`是简易的屏障，等一个线程结束。
+```c
+// 初始化一个屏障，需要count个线程执行到pthread_barrier_wait函数，才能继续执行；否则，被阻塞。
+int pthread_barrier_init(pthread_barrier_t *restrict barrier, const pthread_barrierattr_t *restrict attr, unsigned count);
+int pthread_barrier_destroy(pthread_barrier_t *barrier);
+
+int pthread_barrier_wait(pthread_barrier_t *barrier);
+
+int pthread_barrierattr_init(pthread_barrierattr_t *attr);
+int pthread_barrierattr_destroy(pthread_barrierattr_t *attr);
+
+int pthread_barrierattr_setpshared(const pthread_barrierattr_t *restrict attr);
+```
+# 总结
+| 种类   | 特点                                            | 使用场景                   |
+|------|-----------------------------------------------|------------------------|
+| 互斥锁  | 互斥、排他<br/>临界区代码永远只有一个线程在执行<br/>上锁解锁必须由同一个线程完成 | 互斥问题                   |
+| 信号量  | 限制访问共享资源的线程数量<br/>信号量的`wait`/`post`可以不在同一个线程  | 信号量为1时，可以当做互斥锁且效率比互斥锁高 |
+| 条件变量 | 需要结合互斥锁才能使用<br/>优化了等待过程                       | 生产者消费者模型、哲学家就餐模型       |
+| 读写锁  | 共享-独占锁<br/>读锁是共享锁<br/>写锁时独占锁                  | 读的评率远高于写的频率<br/>提高并行性  |
+| 自旋锁  | 互斥<br/>lock时，不能上锁会一直占用CPU进行上锁（不会让出CPU）        | 多核CPU<br/>临界区小         |
+| 屏障   | 同步多个线程的执行进度                                   | 统筹线程的执行进度              |
+
+## 临界区
+* 临界区过大，会导致并发性降低
+* 临界区过小，会导致上锁、解锁太过于频繁导致效率变低
+
+## 锁的粒度
+* 临界区的大小（上锁到解锁的范围）
+
+## 线程安全
+* 在多线程场景下，函数/容器作为公共资源被多线程访问时，能否保证数据的安全性与完整性。
+* 如果能够保证，则是线程安全的，否则是线程不安全的。
+* Java有两套容器，一套是线程安全的，一套是线程不安全的。C++ STL容器是线程不安全的。
+* 线程安全能够保证数据的正确性与完整性，但会导致效率变低。
 
 
 
