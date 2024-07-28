@@ -161,14 +161,20 @@ C++为了对全局变量、函数、宏、对象进行划分，避免名字冲�
   * 返回对象引用
     * 要保证函数返回后，所引用的对象依然有效
 
+## 动态内存
+* 可以使用C语言的`malloc/calloc/realloc/free`这套函数，但不建议
+* C++申请动态内存使用`new`操作符
+* C++申请数组动态内存空间使用`new[]`操作符
+* 用`new`申请用`delete`释放，用`new[]`申请用`delete[]`释放，要对应起来
+* C++中没有对应的`realloc`
 
-
-
-
-
-
-
-
+### new/delete和malloc/free的区别
+* `new/delete`是操作符，`malloc/free`是函数。
+* `new`会调用类的构造函数，`delete`会调用类的析构函数，`malloc/free`则不会。
+* `new`可以给申请的动态内存初始化，`malloc`则不能（`calloc`会清零）。
+* `new`申请内存时只需指定类型，不需指定大小。`malloc`不需指定类型，而需指定大小。即`new`关心类型，`malloc`关心大小。
+* `new`申请内存后，得到的指针类型为对应类型的指针，而`malloc`申请后得到的指针类型为`void*`，需要类型转换。
+* `new`申请失败会抛出`bad_alloc`异常，`malloc`申请失败会返回`NULL`，并设置`errno`。
 
 
 
