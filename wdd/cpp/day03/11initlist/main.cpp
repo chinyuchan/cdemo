@@ -3,7 +3,7 @@ using namespace std;
 
 class X {
 public:
-    X(int num):b(num),a(b){}
+    X(int num) : b(num), a(b) {}
     void show() {
         cout << a << ' ' << b << endl;
     }
