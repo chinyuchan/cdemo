@@ -21,7 +21,7 @@ int main()
     cout << a << endl;
     cout << n2::b << endl;
     cout << n2::n3::c << endl;
-    
+
     using namespace n2;
     cout << a << endl;
     cout << b << endl;
